@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نظام إدارة المركبات والأذيال</title>
+    
+    <!-- مكتبات التصميم -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبات الرسوم البيانية وتصدير PDF -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .navbar { background-color: #0f172a; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 0.5rem 1rem; }
+        .navbar-brand { font-size: 1.1rem; font-weight: 700; color: #f8fafc !important; }
+        .nav-link { color: #cbd5e1 !important; cursor: pointer; font-weight: 600; }
+        .nav-link:hover { color: #fff !important; }
+        .nav-link.active { font-weight: 700; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8; }
+        .navbar-toggler { border-color: rgba(255,255,255,0.5); padding: 0.25rem 0.5rem; }
+        
+        .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; background-color: #fff;}
+        .card-header { background-color: #ffffff; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; padding: 12px 15px; font-size: 1rem; }
+        .form-label { font-weight: 600; font-size: 0.85rem; color: #64748b; margin-bottom: 0.3rem; }
+        
+        .section-view { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .section-view.active { display: block; }
+        
+        .vehicle-card { transition: transform 0.2s, box-shadow 0.2s; height: 100%; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .vehicle-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .vehicle-img-container { height: 180px; background-color: #e2e8f0; position: relative; flex-shrink: 0; }
+        .vehicle-img-container img { width: 100%; height: 100%; object-fit: cover; }
+        .sku-badge { position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.85); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; z-index: 1; }
+        .price-tag { color: #059669; font-weight: 800; font-size: 1.15rem; }
+        
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table th { white-space: nowrap; font-size: 0.9rem; }
+        .table td { vertical-align: middle; font-size: 0.9rem; }
+
+        /* تنسيقات تقرير PDF */
+        .report-printable-area { background-color: #fff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;}
+        .report-stat-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; text-align: center; }
+        .report-stat-box h5 { color: #64748b; font-size: 0.9rem; margin-bottom: 5px; font-weight: 600;}
+        .report-stat-box h3 { color: #0f172a; margin-bottom: 0; font-weight: 800; font-size: 1.5rem;}
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 767px) {
+            h4 { font-size: 1.15rem; }
+            .mobile-w-100 { width: 100%; margin-bottom: 10px; }
+            .chart-container { height: 220px; }
+            .nav-link { padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid #1e293b; }
+            .nav-link.active { border-bottom: 2px solid #38bdf8; background-color: #1e293b; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg sticky-top mb-3 mb-md-4">
+        <div class="container">
+            <a class="navbar-brand"><i class="fa-solid fa-truck-fast me-2 text-info"></i> إدارة المعرض</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link active" onclick="switchTab('dashboard', this)">الرئيسية</a></li>
+                    <li class="nav-item"><a class="nav-link" onclick="switchTab('inventory', this)">إضافة بطاقة</a></li>
+                    <li class="nav-item"><a class="nav-link" onclick="switchTab('sales', this)">المبيعات</a></li>
+                    <li class="nav-item"><a class="nav-link" onclick="switchTab('treasury', this)">الخزينة</a></li>
+                    <li class="nav-item"><a class="nav-link text-warning" onclick="switchTab('reports', this)"><i class="fa-solid fa-chart-pie me-1"></i> التقارير</a></li>
+                </ul>
+                <div class="d-flex flex-column flex-lg-row gap-2 mt-3 mt-lg-0 pb-3 pb-lg-0">
+                    <button class="btn btn-success btn-sm w-100" onclick="importDummyData()"><i class="fa-solid fa-download"></i> جلب بيانات</button>
+                    <button class="btn btn-outline-danger btn-sm w-100" onclick="clearData()"><i class="fa-solid fa-trash-can"></i> مسح الكل</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container px-2 px-md-3">
+        
+        <!-- ================= القسم 1: الرئيسية ================= -->
+        <div id="dashboard" class="section-view active">
+            <!-- (نفس كود الداشبورد السابق... تم إخفاؤه هنا للتبسيط لكنه موجود في النسخة الكاملة بالأسفل) -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="fw-bold mb-0"><i class="fa-solid fa-chart-line text-primary me-2"></i> لوحة القيادة</h4>
+                <span class="badge bg-primary fs-6" id="dash-inv-count">0 متوفرة</span>
+            </div>
+            <div class="row mb-4">
+                <div class="col-lg-8 col-12 mb-3 mb-lg-0">
+                    <div class="card h-100 mb-0"><div class="card-header"><i class="fa-solid fa-chart-column text-info me-1"></i> الأداء المالي ($)</div><div class="card-body"><div class="chart-container"><canvas id="financeChart"></canvas></div></div></div>
+                </div>
+                <div class="col-lg-4 col-12">
+                    <div class="card h-100 mb-0"><div class="card-header"><i class="fa-solid fa-chart-pie text-success me-1"></i> حالة المخزون</div><div class="card-body d-flex justify-content-center align-items-center"><div class="chart-container" style="height: 220px;"><canvas id="statusChart"></canvas></div></div></div>
+                </div>
+            </div>
+            <h5 class="mb-3 fw-bold text-secondary border-bottom pb-2"><i class="fa-solid fa-warehouse me-2"></i> المخزون المتوفر</h5>
+            <div class="row g-3" id="dashboard-cards-container"></div>
+        </div>
+
+        <!-- ================= القسم 6 (الجديد): التقارير ================= -->
+        <div id="reports" class="section-view">
+            <h4 class="mb-3 fw-bold"><i class="fa-solid fa-file-pdf text-danger me-2"></i> التقارير المتقدمة</h4>
+            
+            <!-- أدوات الفلترة -->
+            <div class="card border-top border-4 border-warning mb-4">
+                <div class="card-body">
+                    <form id="form-reports" class="row g-3 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">نوع التقرير</label>
+                            <select id="report-type" class="form-select">
+                                <option value="sales">تقرير المبيعات والأرباح</option>
+                                <option value="purchases">تقرير المشتريات والمخزون</option>
+                                <option value="treasury">تقرير حركة الخزينة العام</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">من تاريخ</label>
+                            <input type="date" id="report-date-from" class="form-control" required>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">إلى تاريخ</label>
+                            <input type="date" id="report-date-to" class="form-control" required>
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <button type="submit" class="btn btn-warning w-100 fw-bold"><i class="fa-solid fa-bolt me-1"></i> توليد التقرير</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- أزرار التصدير -->
+            <div class="d-flex justify-content-end mb-3" id="export-controls" style="display: none !important;">
+                <button class="btn btn-danger" onclick="exportToPDF()"><i class="fa-solid fa-file-export me-2"></i> تصدير التقرير كـ PDF</button>
+            </div>
+
+            <!-- حاوية التقرير (هذا الجزء الذي سيتم طباعته) -->
+            <div id="report-printable-area" class="report-printable-area" style="display: none;">
+                
+                <!-- رأس التقرير -->
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+                    <div>
+                        <h3 class="fw-bold text-primary mb-1" id="report-print-title">تقرير المبيعات</h3>
+                        <p class="text-muted mb-0" id="report-print-dates">الفترة: -- إلى --</p>
+                    </div>
+                    <div class="text-end">
+                        <h4 class="fw-bold mb-0"><i class="fa-solid fa-truck-fast text-info"></i> نظام المعرض</h4>
+                        <small class="text-muted">تاريخ الطباعة: <span id="report-print-today"></span></small>
+                    </div>
+                </div>
+
+                <!-- البطاقات الإحصائية (4 بطاقات متغيرة) -->
+                <div class="row g-3 mb-4" id="report-stats-container">
+                    <!-- سيتم تعبئتها ديناميكياً -->
+                </div>
+
+                <!-- الرسم البياني للتقرير -->
+                <div class="mb-4" style="height: 300px; width: 100%;">
+                    <canvas id="reportChart"></canvas>
+                </div>
+
+                <!-- جدول البيانات التفصيلي -->
+                <h5 class="fw-bold text-secondary mb-3">البيانات التفصيلية</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped text-center text-nowrap align-middle">
+                        <thead class="table-dark" id="report-table-head">
+                            <!-- الهيدر متغير -->
+                        </thead>
+                        <tbody id="report-table-body">
+                            <!-- البيانات متغيرة -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= باقي الأقسام (مخفية لتبسيط القراءة، لكنها موجودة بالكود الجافاسكربت ليحقنها) ================= -->
+        <!-- قسم إضافة بطاقة -->
+        <div id="inventory" class="section-view"><h4 class="mb-3"><i class="fa-solid fa-file-circle-plus text-primary me-2"></i> إضافة بطاقة</h4><div class="card border-top border-4 border-primary"><div class="card-body"><form id="form-inventory"><div class="row g-2 mb-3 bg-light p-2 p-md-3 rounded"><div class="col-12 col-md-6"><label class="form-label">نوع الصنف</label><select class="form-select" id="inv-type" onchange="toggleInventoryFields()"><option value="vehicle">مركبة</option><option value="trailer">ذيل</option></select></div><div class="col-12 col-md-6"><label class="form-label text-secondary">رقم SKU (تلقائي)</label><input type="text" id="inv-sku" class="form-control bg-white" readonly disabled></div></div><div class="row g-3 mb-4"><div class="col-6 col-md-3"><label class="form-label">الماركة</label><select class="form-select" id="inv-brand" onchange="checkCustomBrand()" required><option value="" disabled selected>اختر...</option><option value="مرسيدس">مرسيدس</option><option value="فولفو">فولفو</option><option value="سكانيا">سكانيا</option><option value="مان">مان</option><option value="other">+ أخرى...</option></select><input type="text" id="inv-brand-custom" class="form-control mt-2" style="display:none;" placeholder="اسم الماركة"></div><div class="col-6 col-md-3"><label class="form-label">الطراز/الفئة</label><input type="text" id="inv-model" class="form-control" required></div><div class="col-6 col-md-2"><label class="form-label">السنة</label><input type="number" id="inv-year" class="form-control" required></div><div class="col-6 col-md-2"><label class="form-label">اللون</label><input type="text" id="inv-color" class="form-control" required></div><div class="col-12 col-md-2"><label class="form-label">رقم الهيكل</label><input type="text" id="inv-chassis" class="form-control" required></div><div class="col-12 col-md-3" id="trailer-type-container" style="display: none;"><label class="form-label text-danger">النوع (الذيل)</label><select id="inv-trailer-type" class="form-select"><option value="سطحة">سطحة</option><option value="براد">براد</option><option value="قلاب">قلاب</option><option value="ستارة">ستارة</option></select></div><div class="col-12 col-md-4"><label class="form-label">الصورة</label><input type="file" id="inv-image" class="form-control" accept="image/*"></div><div class="col-12 col-md-8"><label class="form-label">الملاحظات</label><input type="text" id="inv-notes" class="form-control"></div></div><div class="row g-3 mb-4"><div class="col-6 col-md-3"><label class="form-label">المصدر</label><select id="inv-source" class="form-select" required><option value="أوروبا">أوروبا</option><option value="رومانيا">رومانيا</option><option value="دبي (الإمارات)">دبي (الإمارات)</option><option value="السوق المحلي">السوق المحلي</option></select></div><div class="col-6 col-md-3"><label class="form-label">الموقع</label><select id="inv-location" class="form-select" required><option value="معبر باب الهوى">باب الهوى</option><option value="ميناء اللاذقية">اللاذقية</option><option value="المنطقة الحرة">المنطقة الحرة</option><option value="المعرض (الداخل)">المعرض</option></select></div><div class="col-6 col-md-2"><label class="form-label">الشراء</label><input type="number" id="inv-price" class="form-control cost-input" value="0" required></div><div class="col-6 col-md-2"><label class="form-label">الشحن</label><input type="number" id="inv-shipping" class="form-control cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">الجمرك</label><input type="number" id="inv-customs" class="form-control cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">تخليص</label><input type="number" id="inv-clearance" class="form-control cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">صيانة</label><input type="number" id="inv-maintenance" class="form-control cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">أخرى</label><input type="number" id="inv-others" class="form-control cost-input" value="0"></div><div class="col-12 mt-3 p-3 bg-light rounded"><label class="form-label text-success fs-6 d-block">إجمالي التكلفة $</label><input type="text" id="inv-total" class="form-control form-control-lg bg-white fw-bold text-success" readonly value="0"></div></div><button type="submit" class="btn btn-primary btn-lg w-100"><i class="fa-solid fa-save me-2"></i> حفظ البطاقة</button></form></div></div></div>
+        
+        <!-- قسم البروفايل -->
+        <div id="profile" class="section-view"><div class="d-flex justify-content-between align-items-center mb-3"><h4 class="fw-bold mb-0"><i class="fa-solid fa-id-card text-info me-2"></i> ملف البطاقة: <span id="prof-sku-title" class="text-secondary"></span></h4><button class="btn btn-outline-secondary btn-sm" onclick="switchTab('dashboard')"><i class="fa-solid fa-arrow-right me-1"></i> عودة</button></div><div class="card border-top border-4 border-info"><div class="card-body"><div class="text-center mb-4 bg-light rounded" style="position: relative; overflow: hidden; height: 250px;"><img id="prof-img-preview" src="" style="width: 100%; height: 100%; object-fit: contain;"></div><form id="form-edit-inventory"><input type="hidden" id="edit-id"><div class="row g-2 mb-3 bg-light p-2 p-md-3 rounded"><div class="col-12 col-md-6"><label class="form-label">نوع الصنف</label><select class="form-select" id="edit-type" disabled><option value="vehicle">مركبة</option><option value="trailer">ذيل</option></select></div><div class="col-12 col-md-6"><label class="form-label">تغيير الصورة</label><input type="file" id="edit-image" class="form-control" accept="image/*"></div></div><h6 class="mb-3 text-info border-bottom pb-2">تعديل البيانات الأساسية</h6><div class="row g-3 mb-4"><div class="col-6 col-md-3"><label class="form-label">الماركة</label><input type="text" id="edit-brand" class="form-control" required></div><div class="col-6 col-md-3"><label class="form-label">الطراز/الفئة</label><input type="text" id="edit-model" class="form-control" required></div><div class="col-6 col-md-2"><label class="form-label">السنة</label><input type="number" id="edit-year" class="form-control" required></div><div class="col-6 col-md-2"><label class="form-label">اللون</label><input type="text" id="edit-color" class="form-control" required></div><div class="col-12 col-md-2"><label class="form-label">رقم الهيكل</label><input type="text" id="edit-chassis" class="form-control" required></div><div class="col-12 col-md-3" id="edit-trailer-container" style="display: none;"><label class="form-label text-danger">النوع (الذيل)</label><select id="edit-trailer-type" class="form-select"><option value="سطحة">سطحة</option><option value="براد">براد</option><option value="قلاب">قلاب</option><option value="ستارة">ستارة</option></select></div><div class="col-12"><label class="form-label">ملاحظات إضافية</label><input type="text" id="edit-notes" class="form-control"></div></div><h6 class="mb-3 text-info border-bottom pb-2">تعديل التكاليف ($) <span class="text-muted fw-normal" style="font-size: 0.75rem;">(لن يغير قيود الخزينة السابقة)</span></h6><div class="row g-3 mb-4"><div class="col-6 col-md-3"><label class="form-label">المصدر</label><select id="edit-source" class="form-select"><option value="أوروبا">أوروبا</option><option value="رومانيا">رومانيا</option><option value="دبي (الإمارات)">دبي (الإمارات)</option><option value="السوق المحلي">السوق المحلي</option></select></div><div class="col-6 col-md-3"><label class="form-label">الموقع الحالي</label><select id="edit-location" class="form-select"><option value="معبر باب الهوى">باب الهوى</option><option value="ميناء اللاذقية">اللاذقية</option><option value="المنطقة الحرة">المنطقة الحرة</option><option value="المعرض (الداخل)">المعرض</option></select></div><div class="col-6 col-md-2"><label class="form-label">الشراء</label><input type="number" id="edit-price" class="form-control edit-cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">الشحن</label><input type="number" id="edit-shipping" class="form-control edit-cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">الجمرك</label><input type="number" id="edit-customs" class="form-control edit-cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">تخليص</label><input type="number" id="edit-clearance" class="form-control edit-cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">صيانة</label><input type="number" id="edit-maintenance" class="form-control edit-cost-input" value="0"></div><div class="col-6 col-md-2"><label class="form-label">أخرى</label><input type="number" id="edit-others" class="form-control edit-cost-input" value="0"></div><div class="col-12 mt-3 p-3 bg-light rounded"><label class="form-label text-info fs-6 d-block">التكلفة الإجمالية المحدثة $</label><input type="text" id="edit-total" class="form-control form-control-lg bg-white fw-bold text-info" readonly value="0"></div></div><button type="submit" class="btn btn-info text-white btn-lg w-100"><i class="fa-solid fa-pen-to-square me-2"></i> حفظ التعديلات</button></form></div></div></div>
+
+        <!-- قسم المبيعات والخزينة -->
+        <div id="sales" class="section-view"><h4 class="mb-3"><i class="fa-solid fa-handshake text-success me-2"></i> بيع مركبة</h4><div class="card border-top border-4 border-success"><div class="card-body"><form id="form-sales"><div class="row g-3 mb-4 bg-light p-2 p-md-3 rounded"><div class="col-12 col-md-8"><label class="form-label">المركبة المباعة</label><select class="form-select" id="sale-item" required></select></div><div class="col-12 col-md-4"><label class="form-label text-success">سعر المبيع $</label><input type="number" id="sale-price" class="form-control form-control-lg" required></div></div><div class="row g-3 mb-4"><div class="col-12 col-md-4"><label class="form-label">المشتري</label><input type="text" id="sale-buyer" class="form-control" required></div><div class="col-12 col-md-3"><label class="form-label">رقم الهاتف</label><input type="text" id="sale-phone" class="form-control"></div><div class="col-6 col-md-3"><label class="form-label">المندوب (البائع)</label><input type="text" id="sale-seller" class="form-control" required></div><div class="col-6 col-md-2"><label class="form-label text-danger">عمولة $</label><input type="number" id="sale-commission" class="form-control" value="0"></div></div><button type="submit" class="btn btn-success btn-lg w-100"><i class="fa-solid fa-check me-2"></i> اعتماد البيع</button></form></div></div><div class="card"><div class="card-header bg-white">سجل المبيعات</div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 text-center align-middle text-nowrap"><thead class="table-light"><tr><th>رقم (SKU)</th><th>المركبة</th><th>المشتري</th><th>البائع</th><th>المبيع $</th><th>العمولة $</th><th>الصافي $</th></tr></thead><tbody id="sales-table-body"></tbody></table></div></div></div></div>
+        
+        <div id="treasury" class="section-view"><h4 class="mb-3"><i class="fa-solid fa-vault text-warning me-2"></i> الخزينة</h4><div class="card mb-4"><div class="card-body"><form id="form-treasury" class="row g-2 align-items-end"><div class="col-6 col-md-2"><label class="form-label">النوع</label><select id="trs-type" class="form-select"><option value="in">قبض (+)</option><option value="out">صرف (-)</option></select></div><div class="col-6 col-md-3"><label class="form-label">الحساب</label><input type="text" id="trs-account" class="form-control" required></div><div class="col-12 col-md-4"><label class="form-label">البيان</label><input type="text" id="trs-desc" class="form-control" required></div><div class="col-8 col-md-2"><label class="form-label">المبلغ $</label><input type="number" id="trs-amount" class="form-control" required></div><div class="col-4 col-md-1"><button type="submit" class="btn btn-dark w-100"><i class="fa-solid fa-plus"></i></button></div></form></div></div><div class="card"><div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-center gap-2"><span>حركة الصندوق</span><span class="badge bg-dark fs-6 p-2 w-100 mobile-w-100 text-center" id="total-balance">الرصيد: 0 $</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover mb-0 text-center text-nowrap"><thead class="table-light"><tr><th>التاريخ</th><th>الحساب</th><th>البيان</th><th class="text-success">وارد (+)</th><th class="text-danger">صادر (-)</th><th>الرصيد التراكمي</th></tr></thead><tbody id="treasury-table-body"></tbody></table></div></div></div></div>
+
+    </div>
+
+    <!-- ================= البرمجة (JavaScript) ================= -->
+    <script>
+        const storageKey = 'advancedCarSys_v6_reports';
+        let data = { inventory: [], sales: [], treasury:[] };
+        
+        try { const savedData = JSON.parse(localStorage.getItem(storageKey)); if (savedData && Array.isArray(savedData.inventory)) data = savedData; } catch (error) {}
+
+        let currentImageBase64 = "https://via.placeholder.com/400x300.png?text=بدون+صورة";
+        let editImageBase64 = "";
+        let financeChartInstance = null, statusChartInstance = null, reportChartInstance = null;
+
+        const excelDummyData =[
+            { id: "d1", dateAdded: "01/05/2026", sku: "VEH-2026-8012", type: "vehicle", brand: "مرسيدس", model: "Actros 1845", year: "2018", color: "أبيض", chassis: "WDB123", trailerType: "", source: "أوروبا", location: "معبر باب الهوى", notes: "نظيفة", image: "https://via.placeholder.com/400x300/e2e8f0/0f172a?text=Mercedes+Actros", price: 40000, shipping: 2500, customs: 0, clearance: 0, maintenance: 0, others: 0, totalCost: 42500, status: "متوفر" },
+            { id: "d2", dateAdded: "03/05/2026", sku: "VEH-2026-5534", type: "vehicle", brand: "فولفو", model: "FH 500", year: "2020", color: "أسود", chassis: "YV2RT", trailerType: "", source: "رومانيا", location: "المنطقة الحرة", notes: "جاهزة", image: "https://via.placeholder.com/400x300/e2e8f0/0f172a?text=Volvo+FH", price: 50000, shipping: 1000, customs: 0, clearance: 0, maintenance: 0, others: 0, totalCost: 51000, status: "متوفر" },
+            { id: "d3", dateAdded: "05/05/2026", sku: "TRL-2026-9022", type: "trailer", brand: "كرون", model: "مقطورة", year: "2021", color: "فضي", chassis: "WKR123", trailerType: "براد", source: "أوروبا", location: "ميناء اللاذقية", notes: "تبريد", image: "https://via.placeholder.com/400x300/e2e8f0/0f172a?text=Trailer", price: 20000, shipping: 2000, customs: 0, clearance: 0, maintenance: 0, others: 0, totalCost: 22000, status: "متوفر" }
+        ];
+
+        function saveData() { localStorage.setItem(storageKey, JSON.stringify(data)); renderAll(); }
+        window.clearData = function() { if(confirm("سيتم مسح كافة البيانات من المتصفح نهائياً. متأكد؟")) { data = { inventory: [], sales: [], treasury:[] }; saveData(); generateSKUUI(); closeMobileMenu(); } };
+        function closeMobileMenu() { const navTog = document.querySelector('.navbar-toggler'), navCol = document.querySelector('.navbar-collapse'); if (window.getComputedStyle(navTog).display !== 'none' && navCol.classList.contains('show')) navTog.click(); }
+
+        // --- تهيئة التواريخ للتقارير (تلقائياً بداية ونهاية الشهر الحالي) ---
+        function setReportDefaultDates() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            document.getElementById('report-date-from').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('report-date-to').value = today.toISOString().split('T')[0];
+        }
+
+        window.switchTab = function(tabId, element) {
+            document.querySelectorAll('.section-view').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if(element && element.tagName === 'A') element.classList.add('active');
+            
+            if(tabId === 'inventory') generateSKUUI();
+            if(tabId === 'reports') {
+                setReportDefaultDates();
+                document.getElementById('export-controls').style.setProperty('display', 'none', 'important');
+                document.getElementById('report-printable-area').style.display = 'none';
+            }
+            
+            closeMobileMenu(); renderAll();
+        };
+
+        window.importDummyData = function() {
+            let added = 0;
+            excelDummyData.forEach(item => {
+                if(!data.inventory.find(i => i.sku === item.sku)) {
+                    data.inventory.push({...item});
+                    data.treasury.push({ id: Date.now().toString(), date: item.dateAdded, account: 'موردين', desc: `استيراد ${item.sku}`, type: 'out', amount: item.totalCost });
+                    added++;
+                }
+            });
+            if(added > 0) { alert(`تم استيراد ${added} مركبة بنجاح.`); saveData(); switchTab('dashboard', document.querySelector('.nav-link')); } else { alert("تم جلب البيانات مسبقاً."); closeMobileMenu(); }
+        };
+
+        // دالة تحويل التاريخ من صيغة DD/MM/YYYY إلى كائن Date للمقارنة
+        function parseGBDate(dateStr) {
+            if(!dateStr) return new Date();
+            const parts = dateStr.split('/');
+            return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+
+        // ================= منطق التقارير (Reports Logic) =================
+        document.getElementById('form-reports').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const type = document.getElementById('report-type').value;
+            const fromDateStr = document.getElementById('report-date-from').value; // YYYY-MM-DD
+            const toDateStr = document.getElementById('report-date-to').value;
+            
+            const fromDate = new Date(fromDateStr);
+            const toDate = new Date(toDateStr);
+            toDate.setHours(23, 59, 59, 999); // لنهاية اليوم
+
+            document.getElementById('report-print-dates').innerText = `الفترة: ${fromDateStr} إلى ${toDateStr}`;
+            document.getElementById('report-print-today').innerText = new Date().toLocaleDateString('ar-EG');
+            
+            const statsContainer = document.getElementById('report-stats-container');
+            const thead = document.getElementById('report-table-head');
+            const tbody = document.getElementById('report-table-body');
+            
+            statsContainer.innerHTML = ''; tbody.innerHTML = '';
+            
+            let chartLabels =[];
+            let chartData1 = [];
+            let chartData2 =[];
+            let chartTitle1 = "", chartTitle2 = "";
+            let reportTitle = "";
+
+            // --- 1. تقرير المبيعات ---
+            if(type === 'sales') {
+                reportTitle = "تقرير المبيعات والأرباح الشامل";
+                let totalSales = 0, totalProfit = 0, totalComms = 0, count = 0;
+                
+                const filteredSales = data.sales.filter(s => {
+                    const d = parseGBDate(s.date);
+                    return d >= fromDate && d <= toDate;
+                });
+
+                // تجميع البيانات للرسم البياني حسب التاريخ
+                let salesByDate = {};
+                filteredSales.forEach(s => {
+                    totalSales += s.price;
+                    totalComms += s.commission;
+                    const profit = s.price - s.cost - s.commission;
+                    totalProfit += profit;
+                    count++;
+                    
+                    if(!salesByDate[s.date]) salesByDate[s.date] = { sales: 0, profit: 0 };
+                    salesByDate[s.date].sales += s.price;
+                    salesByDate[s.date].profit += profit;
+
+                    tbody.innerHTML += `<tr><td>${s.date}</td><td>${s.sku}</td><td>${s.title}</td><td>$${s.price.toLocaleString()}</td><td class="text-success fw-bold">$${profit.toLocaleString()}</td></tr>`;
+                });
+
+                thead.innerHTML = `<tr><th>التاريخ</th><th>رقم SKU</th><th>المركبة</th><th>سعر المبيع</th><th>الربح الصافي</th></tr>`;
+                statsContainer.innerHTML = `
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>عدد المبيعات</h5><h3>${count}</h3></div></div>
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>إجمالي الإيرادات</h5><h3 class="text-primary">$${totalSales.toLocaleString()}</h3></div></div>
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>إجمالي العمولات</h5><h3 class="text-danger">$${totalComms.toLocaleString()}</h3></div></div>
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>صافي الأرباح</h5><h3 class="text-success">$${totalProfit.toLocaleString()}</h3></div></div>
+                `;
+
+                Object.keys(salesByDate).forEach(k => { chartLabels.push(k); chartData1.push(salesByDate[k].sales); chartData2.push(salesByDate[k].profit); });
+                chartTitle1 = "الإيرادات"; chartTitle2 = "الأرباح";
+            }
+            
+            // --- 2. تقرير المشتريات والمخزون ---
+            else if(type === 'purchases') {
+                reportTitle = "تقرير المشتريات وإضافة المخزون";
+                let totalCost = 0, vehicleCount = 0, trailerCount = 0;
+
+                const filteredInv = data.inventory.filter(i => {
+                    const d = parseGBDate(i.dateAdded);
+                    return d >= fromDate && d <= toDate;
+                });
+
+                let costByDate = {};
+                filteredInv.forEach(i => {
+                    totalCost += i.totalCost;
+                    if(i.type === 'vehicle') vehicleCount++; else trailerCount++;
+                    
+                    if(!costByDate[i.dateAdded]) costByDate[i.dateAdded] = 0;
+                    costByDate[i.dateAdded] += i.totalCost;
+
+                    tbody.innerHTML += `<tr><td>${i.dateAdded}</td><td>${i.sku}</td><td>${i.brand} ${i.model}</td><td>${i.source}</td><td class="text-danger fw-bold">$${i.totalCost.toLocaleString()}</td></tr>`;
+                });
+
+                thead.innerHTML = `<tr><th>تاريخ الإضافة</th><th>رقم SKU</th><th>الصنف</th><th>المصدر</th><th>التكلفة الإجمالية</th></tr>`;
+                statsContainer.innerHTML = `
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>إجمالي المركبات</h5><h3>${vehicleCount}</h3></div></div>
+                    <div class="col-6 col-md-3"><div class="report-stat-box"><h5>إجمالي الأذيال</h5><h3>${trailerCount}</h3></div></div>
+                    <div class="col-6 col-md-6"><div class="report-stat-box"><h5>إجمالي تكلفة المشتريات</h5><h3 class="text-danger">$${totalCost.toLocaleString()}</h3></div></div>
+                `;
+
+                Object.keys(costByDate).forEach(k => { chartLabels.push(k); chartData1.push(costByDate[k]); });
+                chartTitle1 = "تكلفة المشتريات";
+            }
+
+            // --- 3. تقرير الخزينة ---
+            else if(type === 'treasury') {
+                reportTitle = "تقرير حركة الخزينة العام (وارد وصادر)";
+                let totalIn = 0, totalOut = 0;
+
+                const filteredTreasury = data.treasury.filter(t => {
+                    const d = parseGBDate(t.date);
+                    return d >= fromDate && d <= toDate;
+                });
+
+                let treasuryByDate = {};
+                filteredTreasury.forEach(t => {
+                    if(t.type === 'in') totalIn += t.amount; else totalOut += t.amount;
+                    
+                    if(!treasuryByDate[t.date]) treasuryByDate[t.date] = { in: 0, out: 0 };
+                    if(t.type === 'in') treasuryByDate[t.date].in += t.amount; else treasuryByDate[t.date].out += t.amount;
+
+                    tbody.innerHTML += `<tr><td>${t.date}</td><td>${t.account}</td><td>${t.desc}</td><td class="text-success">${t.type==='in'?'$'+t.amount.toLocaleString():'-'}</td><td class="text-danger">${t.type==='out'?'$'+t.amount.toLocaleString():'-'}</td></tr>`;
+                });
+
+                thead.innerHTML = `<tr><th>التاريخ</th><th>الحساب</th><th>البيان</th><th>وارد (+)</th><th>صادر (-)</th></tr>`;
+                statsContainer.innerHTML = `
+                    <div class="col-12 col-md-4"><div class="report-stat-box"><h5>إجمالي الوارد (القبض)</h5><h3 class="text-success">$${totalIn.toLocaleString()}</h3></div></div>
+                    <div class="col-12 col-md-4"><div class="report-stat-box"><h5>إجمالي الصادر (الصرف)</h5><h3 class="text-danger">$${totalOut.toLocaleString()}</h3></div></div>
+                    <div class="col-12 col-md-4"><div class="report-stat-box"><h5>المحصلة في هذه الفترة</h5><h3 class="${(totalIn-totalOut)>=0?'text-primary':'text-danger'}">$${(totalIn-totalOut).toLocaleString()}</h3></div></div>
+                `;
+
+                Object.keys(treasuryByDate).forEach(k => { chartLabels.push(k); chartData1.push(treasuryByDate[k].in); chartData2.push(treasuryByDate[k].out); });
+                chartTitle1 = "الواردات"; chartTitle2 = "الصادرات";
+            }
+
+            document.getElementById('report-print-title').innerText = reportTitle;
+            
+            // إظهار منطقة التقرير وزر التصدير
+            document.getElementById('export-controls').style.setProperty('display', 'flex', 'important');
+            document.getElementById('report-printable-area').style.display = 'block';
+
+            // رسم المخطط البياني للتقرير
+            if(typeof Chart !== 'undefined') {
+                const ctx = document.getElementById('reportChart').getContext('2d');
+                if(reportChartInstance) reportChartInstance.destroy();
+                
+                let datasets =[{ label: chartTitle1, data: chartData1, backgroundColor: '#38bdf8', borderColor: '#0284c7', borderWidth: 2, fill: true, tension: 0.3 }];
+                if(chartData2.length > 0) {
+                    datasets.push({ label: chartTitle2, data: chartData2, backgroundColor: type==='treasury'?'#f87171':'#34d399', borderColor: type==='treasury'?'#dc2626':'#059669', borderWidth: 2, fill: true, tension: 0.3 });
+                }
+
+                reportChartInstance = new Chart(ctx, {
+                    type: (type === 'sales' || type === 'treasury') ? 'line' : 'bar',
+                    data: { labels: chartLabels, datasets: datasets },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        });
+
+        // ================= دالة التصدير إلى PDF =================
+        window.exportToPDF = function() {
+            const element = document.getElementById('report-printable-area');
+            const opt = { scale: 2, useCORS: true }; // جودة عالية
+            
+            alert("جاري تحضير ملف الـ PDF، يرجى الانتظار للحظات...");
+
+            html2canvas(element, opt).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jspdf.jsPDF('p', 'mm', 'a4'); // اتجاه عمودي، ميليمتر، حجم A4
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                
+                // إضافة الصورة إلى الـ PDF (X, Y, Width, Height)
+                pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, pdfHeight);
+                
+                // تنزيل الملف
+                const title = document.getElementById('report-print-title').innerText;
+                pdf.save(`${title}.pdf`);
+            }).catch(err => {
+                alert("حدث خطأ أثناء تصدير الـ PDF. تأكد من اتصالك بالإنترنت لتحميل المكتبة.");
+                console.error(err);
+            });
+        };
+
+        // --- باقي وظائف النظام القديمة ---
+        window.openProfile = function(id) {
+            const item = data.inventory.find(i => i.id === id);
+            if(!item) return;
+            document.getElementById('edit-id').value = item.id; document.getElementById('prof-sku-title').innerText = item.sku; document.getElementById('prof-img-preview').src = item.image; editImageBase64 = item.image;
+            document.getElementById('edit-type').value = item.type; document.getElementById('edit-brand').value = item.brand; document.getElementById('edit-model').value = item.model; document.getElementById('edit-year').value = item.year; document.getElementById('edit-color').value = item.color; document.getElementById('edit-chassis').value = item.chassis; document.getElementById('edit-notes').value = item.notes || ''; document.getElementById('edit-source').value = item.source; document.getElementById('edit-location').value = item.location;
+            const trailerCont = document.getElementById('edit-trailer-container'); if(item.type === 'trailer') { trailerCont.style.display = 'block'; document.getElementById('edit-trailer-type').value = item.trailerType; } else { trailerCont.style.display = 'none'; }
+            document.getElementById('edit-price').value = item.price || 0; document.getElementById('edit-shipping').value = item.shipping || 0; document.getElementById('edit-customs').value = item.customs || 0; document.getElementById('edit-clearance').value = item.clearance || 0; document.getElementById('edit-maintenance').value = item.maintenance || 0; document.getElementById('edit-others').value = item.others || 0; document.getElementById('edit-total').value = item.totalCost;
+            switchTab('profile', null); window.scrollTo(0, 0);
+        };
+
+        document.querySelectorAll('.edit-cost-input').forEach(input => { input.addEventListener('input', () => { let t = 0; document.querySelectorAll('.edit-cost-input').forEach(i => t += parseFloat(i.value) || 0); document.getElementById('edit-total').value = t; }); });
+        document.getElementById('edit-image').addEventListener('change', e => { if(e.target.files[0]) { const r = new FileReader(); r.onload = ev => { editImageBase64 = ev.target.result; document.getElementById('prof-img-preview').src = editImageBase64; }; r.readAsDataURL(e.target.files[0]); } });
+
+        document.getElementById('form-edit-inventory').addEventListener('submit', function(e) {
+            e.preventDefault(); const id = document.getElementById('edit-id').value; const itemIndex = data.inventory.findIndex(i => i.id === id);
+            if(itemIndex > -1) {
+                data.inventory[itemIndex].brand = document.getElementById('edit-brand').value; data.inventory[itemIndex].model = document.getElementById('edit-model').value; data.inventory[itemIndex].year = document.getElementById('edit-year').value; data.inventory[itemIndex].color = document.getElementById('edit-color').value; data.inventory[itemIndex].chassis = document.getElementById('edit-chassis').value; data.inventory[itemIndex].notes = document.getElementById('edit-notes').value; data.inventory[itemIndex].source = document.getElementById('edit-source').value; data.inventory[itemIndex].location = document.getElementById('edit-location').value; data.inventory[itemIndex].image = editImageBase64;
+                if(data.inventory[itemIndex].type === 'trailer') data.inventory[itemIndex].trailerType = document.getElementById('edit-trailer-type').value;
+                data.inventory[itemIndex].price = parseFloat(document.getElementById('edit-price').value) || 0; data.inventory[itemIndex].shipping = parseFloat(document.getElementById('edit-shipping').value) || 0; data.inventory[itemIndex].customs = parseFloat(document.getElementById('edit-customs').value) || 0; data.inventory[itemIndex].clearance = parseFloat(document.getElementById('edit-clearance').value) || 0; data.inventory[itemIndex].maintenance = parseFloat(document.getElementById('edit-maintenance').value) || 0; data.inventory[itemIndex].others = parseFloat(document.getElementById('edit-others').value) || 0; data.inventory[itemIndex].totalCost = parseFloat(document.getElementById('edit-total').value) || 0;
+                alert("تم الحفظ!"); saveData(); switchTab('dashboard', document.querySelector('.nav-link'));
+            }
+        });
+
+        window.generateSKUUI = function() { const type = document.getElementById('inv-type').value; document.getElementById('inv-sku').value = `${type === 'vehicle' ? 'VEH' : 'TRL'}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`; };
+        window.toggleInventoryFields = function() { document.getElementById('trailer-type-container').style.display = document.getElementById('inv-type').value === 'trailer' ? 'block' : 'none'; generateSKUUI(); };
+        window.checkCustomBrand = function() { const isO = document.getElementById('inv-brand').value === 'other'; document.getElementById('inv-brand-custom').style.display = isO ? 'block' : 'none'; document.getElementById('inv-brand-custom').required = isO; };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('inv-image').addEventListener('change', e => { if(e.target.files[0]) { const r = new FileReader(); r.onload = ev => currentImageBase64 = ev.target.result; r.readAsDataURL(e.target.files[0]); } });
+            document.querySelectorAll('.cost-input').forEach(input => { input.addEventListener('input', () => { let t = 0; document.querySelectorAll('.cost-input').forEach(i => t += parseFloat(i.value) || 0); document.getElementById('inv-total').value = t; }); });
+
+            document.getElementById('form-inventory').addEventListener('submit', function(e) {
+                e.preventDefault(); let b = document.getElementById('inv-brand').value; if(b === 'other') b = document.getElementById('inv-brand-custom').value;
+                const tc = parseFloat(document.getElementById('inv-total').value), sku = document.getElementById('inv-sku').value;
+                const dateAdded = new Date().toLocaleDateString('en-GB'); // تاريخ اليوم كـ إضافة للمخزون للتقارير
+                const p = parseFloat(document.getElementById('inv-price').value)||0, sh = parseFloat(document.getElementById('inv-shipping').value)||0, cu = parseFloat(document.getElementById('inv-customs').value)||0, cl = parseFloat(document.getElementById('inv-clearance').value)||0, m = parseFloat(document.getElementById('inv-maintenance').value)||0, o = parseFloat(document.getElementById('inv-others').value)||0;
+                data.inventory.push({ id: Date.now().toString(), dateAdded: dateAdded, sku: sku, type: document.getElementById('inv-type').value, brand: b, model: document.getElementById('inv-model').value, year: document.getElementById('inv-year').value, color: document.getElementById('inv-color').value, chassis: document.getElementById('inv-chassis').value, trailerType: document.getElementById('inv-trailer-type').value, source: document.getElementById('inv-source').value, location: document.getElementById('inv-location').value, notes: document.getElementById('inv-notes').value, image: currentImageBase64, price: p, shipping: sh, customs: cu, clearance: cl, maintenance: m, others: o, totalCost: tc, status: 'متوفر' });
+                data.treasury.push({ id: Date.now().toString(), date: dateAdded, account: 'استيراد', desc: `إصدار ${sku}`, type: 'out', amount: tc });
+                this.reset(); currentImageBase64 = "https://via.placeholder.com/400x300.png?text=بدون+صورة"; document.getElementById('inv-total').value = 0; checkCustomBrand(); toggleInventoryFields(); alert("تم الحفظ!"); saveData();
+            });
+
+            document.getElementById('form-sales').addEventListener('submit', function(e) {
+                e.preventDefault(); const item = data.inventory.find(i => i.id === document.getElementById('sale-item').value); if(!item) return; item.status = 'مباع';
+                const p = parseFloat(document.getElementById('sale-price').value), c = parseFloat(document.getElementById('sale-commission').value) || 0;
+                const dateSold = new Date().toLocaleDateString('en-GB');
+                data.sales.push({ id: Date.now().toString(), sku: item.sku, title: `${item.brand} ${item.model}`, cost: item.totalCost, price: p, commission: c, buyer: document.getElementById('sale-buyer').value, seller: document.getElementById('sale-seller').value, date: dateSold });
+                data.treasury.push({ id: Date.now().toString(), date: dateSold, account: document.getElementById('sale-buyer').value, desc: `مبيع ${item.sku}`, type: 'in', amount: p });
+                if(c > 0) data.treasury.push({ id: Date.now().toString(), date: dateSold, account: document.getElementById('sale-seller').value, desc: `عمولة ${item.sku}`, type: 'out', amount: c });
+                this.reset(); document.getElementById('sale-commission').value = 0; alert("تم البيع!"); saveData();
+            });
+
+            document.getElementById('form-treasury').addEventListener('submit', function(e) {
+                e.preventDefault(); data.treasury.push({ id: Date.now().toString(), date: new Date().toLocaleDateString('en-GB'), account: document.getElementById('trs-account').value, desc: document.getElementById('trs-desc').value, type: document.getElementById('trs-type').value, amount: parseFloat(document.getElementById('trs-amount').value) }); this.reset(); saveData();
+            });
+
+            generateSKUUI(); renderAll();
+        });
+
+        function renderAll() {
+            const container = document.getElementById('dashboard-cards-container'); container.innerHTML = ''; 
+            let avCost = 0, tRev = 0, netP = 0, tCom = 0, avCount = 0, sCount = 0;
+
+            [...data.inventory].reverse().forEach(item => {
+                if(item.status === 'متوفر') {
+                    avCount++; avCost += item.totalCost;
+                    container.innerHTML += `<div class="col-12 col-sm-6 col-lg-4"><div class="card vehicle-card"><div class="vehicle-img-container"><span class="sku-badge">${item.sku}</span><img src="${item.image}"></div><div class="card-body p-3 d-flex flex-column"><div class="d-flex justify-content-between align-items-center mb-1"><h6 class="card-title fw-bold mb-0">${item.brand} ${item.model}</h6><span class="badge bg-secondary">${item.year}</span></div><p class="text-muted small mb-2">${item.type === 'vehicle' ? '<i class="fa-solid fa-truck"></i> مركبة' : `<i class="fa-solid fa-trailer"></i> ذيل (${item.trailerType})`} | ${item.location}</p><hr class="my-2"><div class="d-flex justify-content-between align-items-center mb-3"><span class="text-secondary small">التكلفة:</span><span class="price-tag">$${item.totalCost.toLocaleString()}</span></div><button class="btn btn-outline-info btn-sm w-100 mt-auto" onclick="openProfile('${item.id}')"><i class="fa-solid fa-folder-open me-1"></i> الملف والتعديل</button></div></div></div>`;
+                } else { sCount++; }
+            });
+
+            data.sales.forEach(sale => { tRev += sale.price; tCom += sale.commission; netP += (sale.price - sale.cost - sale.commission); });
+
+            document.getElementById('dash-inv-count').innerText = `${avCount} متوفرة`;
+            if(avCount === 0) container.innerHTML = '<div class="col-12 text-center text-muted py-4"><i class="fa-solid fa-box-open fa-3x mb-2"></i><p>المعرض فارغ حالياً.</p></div>';
+
+            const selectSale = document.getElementById('sale-item'); selectSale.innerHTML = '<option value="" disabled selected>اختر المركبة...</option>';
+            data.inventory.filter(i => i.status === 'متوفر').forEach(i => selectSale.innerHTML += `<option value="${i.id}">[${i.sku}] ${i.brand} ${i.model}</option>`);
+
+            if (typeof Chart !== 'undefined') {
+                try {
+                    const ctxFin = document.getElementById('financeChart').getContext('2d'); if(financeChartInstance) financeChartInstance.destroy();
+                    financeChartInstance = new Chart(ctxFin, { type: 'bar', data: { labels:['التكلفة', 'الإيرادات', 'الربح', 'العمولات'], datasets:[{ label: 'المبلغ ($)', data:[avCost, tRev, netP, tCom], backgroundColor:['#64748b', '#0ea5e9', '#22c55e', '#ef4444'], borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+
+                    const ctxStat = document.getElementById('statusChart').getContext('2d'); if(statusChartInstance) statusChartInstance.destroy();
+                    statusChartInstance = new Chart(ctxStat, { type: 'doughnut', data: { labels:['متوفر', 'مباع'], datasets:[{ data:[avCount, sCount], backgroundColor:['#3b82f6', '#10b981'], hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
+                } catch (e) {}
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
